@@ -1,0 +1,74 @@
+{
+  "name": "tab-complete",
+  "displayName": "Tab Complete",
+  "description": "Tab completion extension",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.116.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration":{
+      "title": "Tab Completion",
+      "properties": {
+        "tab-completion.fireworksApiKey":{
+          "type":"string",
+          "default":"",
+          "description": "Fireworks AI API key"
+        },
+        "tab-completion.groqApiKey":{
+          "type":"string",
+          "default":"",
+          "description": "Groq API key"
+        },
+        "tab-completion.openrouterApiKey":{
+          "type":"string",
+          "default":"",
+          "description": "OpenRouter API key(default)"
+        },
+        "tab-completion.model":{
+          "type":"string",
+          "default":"qwen/qwen3-32",
+          "description": "AI model to use for completions"
+        },
+        "tab-completion.maxTokens":{
+          "type":"number",
+          "default":500,
+          "minimum": 50,
+          "maximum": 5000,
+          "description": "Maximum number to generate"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "tab-complete.helloWorld",
+        "title": "Hello World"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.116.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.56.1",
+    "eslint": "^9.39.3",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
