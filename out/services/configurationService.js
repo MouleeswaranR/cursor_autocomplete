@@ -41,7 +41,9 @@ const DEFAULTS = {
     groqApiKey: '',
     openrouterApiKey: '',
     model: 'qwen/qwen-32b',
-    maxTokens: 500
+    maxTokens: 500,
+    completionCacheMaxEntries: 100,
+    completionCacheTtlMs: 30000
 };
 class ConfigurationService {
     //explicitly null to make it a singelton instance which means one instnace used across whole application
@@ -64,6 +66,8 @@ class ConfigurationService {
             openrouterApiKey: config.get('openrouterApiKey', DEFAULTS.openrouterApiKey),
             model: config.get('model', DEFAULTS.model),
             maxTokens: config.get('maxTokens', DEFAULTS.maxTokens),
+            completionCacheTtlMs: config.get('completionCacheTtlMs', DEFAULTS.completionCacheTtlMs),
+            completionCacheMaxEntries: config.get('completionCacheMaxEntries', DEFAULTS.completionCacheMaxEntries)
         };
     }
     //method for creating a listener to check configuration change after extension activation
@@ -101,6 +105,10 @@ class ConfigurationService {
     get maxTokens() { return this.cachedConfig.maxTokens; }
     get openrouterApiKey() { return this.cachedConfig.openrouterApiKey; }
     get groqApiKey() { return this.cachedConfig.groqApiKey; }
+    get completionCacheMaxEntries() { return this.cachedConfig.completionCacheMaxEntries; }
+    ;
+    get completionCacheTtlMs() { return this.cachedConfig.completionCacheTtlMs; }
+    ;
     //singleton format
     static getInstance() {
         if (!ConfigurationService.instance) {

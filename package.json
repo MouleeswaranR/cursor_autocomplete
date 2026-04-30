@@ -14,35 +14,49 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "configuration":{
+    "configuration": {
       "title": "Tab Completion",
       "properties": {
-        "tab-completion.fireworksApiKey":{
-          "type":"string",
-          "default":"",
+        "tab-completion.fireworksApiKey": {
+          "type": "string",
+          "default": "",
           "description": "Fireworks AI API key"
         },
-        "tab-completion.groqApiKey":{
-          "type":"string",
-          "default":"",
+        "tab-completion.groqApiKey": {
+          "type": "string",
+          "default": "",
           "description": "Groq API key"
         },
-        "tab-completion.openrouterApiKey":{
-          "type":"string",
-          "default":"",
+        "tab-completion.openrouterApiKey": {
+          "type": "string",
+          "default": "",
           "description": "OpenRouter API key(default)"
         },
-        "tab-completion.model":{
-          "type":"string",
-          "default":"qwen/qwen3-32",
+        "tab-completion.model": {
+          "type": "string",
+          "default": "qwen/qwen3-32",
           "description": "AI model to use for completions"
         },
-        "tab-completion.maxTokens":{
-          "type":"number",
-          "default":500,
+        "tab-completion.maxTokens": {
+          "type": "number",
+          "default": 500,
           "minimum": 50,
           "maximum": 5000,
           "description": "Maximum number to generate"
+        },
+        "tab-completion.completionCacheMaxEntries": {
+          "type": "number",
+          "default": 100,
+          "minimum": 10,
+          "maximum": 1000,
+          "description": "Maximum entries in completion cache"
+        },
+        "tab-completion.completionCacheTtlMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 5000,
+          "maximum": 120000,
+          "description": "Completion Cache TTL in seconds"
         }
       }
     },
@@ -62,13 +76,13 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.116.0",
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "typescript-eslint": "^8.56.1",
+    "@types/node": "^22.19.17",
+    "@types/vscode": "^1.116.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.39.3",
     "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "typescript-eslint": "^8.56.1"
   }
 }
