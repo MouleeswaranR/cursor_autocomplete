@@ -48,7 +48,7 @@ function activate(context) {
     const providerDisposable = vscode.languages.registerInlineCompletionItemProvider({ pattern: "**" }, //placed inside all files
     provider);
     //pushing disposable object inside context
-    context.subscriptions.push(providerDisposable);
+    context.subscriptions.push(providerDisposable, outputChannel, provider);
 }
 // This method is called when your extension is deactivated
 function deactivate() { }

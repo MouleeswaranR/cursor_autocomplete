@@ -9,6 +9,8 @@ export interface TabCompletionConfig{
     maxTokens:number;
     model:string;
     //Cache settings
+    completionCacheTtlMs:number,
+    completionCacheMaxEntries:number,
 }
 
 
@@ -17,7 +19,9 @@ const DEFAULTS:TabCompletionConfig={
     groqApiKey:'',
     openrouterApiKey:'',
     model:'qwen/qwen-32b',
-    maxTokens:500
+    maxTokens:500,
+    completionCacheMaxEntries:100,
+    completionCacheTtlMs:30000
 }
 
 export class ConfigurationService implements vscode.Disposable{
@@ -45,7 +49,9 @@ export class ConfigurationService implements vscode.Disposable{
             groqApiKey:config.get<string>('groqApiKey',DEFAULTS.groqApiKey),
             openrouterApiKey:config.get<string>('openrouterApiKey',DEFAULTS.openrouterApiKey),
             model:config.get<string>('model',DEFAULTS.model),
-            maxTokens:config.get('maxTokens',DEFAULTS.maxTokens),
+            maxTokens:config.get<number>('maxTokens',DEFAULTS.maxTokens),
+            completionCacheTtlMs:config.get<number>('completionCacheTtlMs',DEFAULTS.completionCacheTtlMs),
+            completionCacheMaxEntries:config.get<number>('completionCacheMaxEntries',DEFAULTS.completionCacheMaxEntries)
         }
     }
 
@@ -86,6 +92,8 @@ export class ConfigurationService implements vscode.Disposable{
     get maxTokens() {return this.cachedConfig.maxTokens}
     get openrouterApiKey(){ return this.cachedConfig.openrouterApiKey}
     get groqApiKey(){ return this.cachedConfig.groqApiKey}
+    get completionCacheMaxEntries(){return this.cachedConfig.completionCacheMaxEntries};
+    get completionCacheTtlMs(){return this.cachedConfig.completionCacheTtlMs};
 
     //singleton format
     static getInstance():ConfigurationService{
