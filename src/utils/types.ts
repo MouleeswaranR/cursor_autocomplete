@@ -53,3 +53,9 @@ export interface IntentEntry{
     timeStamp:number;
     suggestedPreview?:string;
 }
+
+export interface EnclosingScopes{
+    enclosingClass: vscode.DocumentSymbol|null;
+    enclosingFunction: vscode.DocumentSymbol|null;
+    symbolsByName:Map<string,vscode.DocumentSymbol[]>;
+}

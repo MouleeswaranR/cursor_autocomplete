@@ -3,12 +3,14 @@ import { ChatMessage, PendingCompletion, ReplacementEdit } from '../utils/types'
 import { ApiClient } from '../api/apiClient';
 import { IntentTracker } from '../services/intentTracker';
 import { CompletionCache } from '../cache/completionCache';
+import { ContextGatherer } from '../services/contextGatherer';
 
 export class InlineCompletionProvider implements vscode.InlineCompletionItemProvider, vscode.Disposable{
     private readonly outputChannel: vscode.OutputChannel;
     private readonly apiClient:ApiClient;
     private readonly intentTracker:IntentTracker;
     private readonly completionCache:CompletionCache;
+    private readonly contextGatherer:ContextGatherer;
     private pendingCompletion: PendingCompletion|null=null;//used to track last pending completion so that duplication can be avoided if they are same
     private lastCompletionText='';
     private lastCompletionPosition:vscode.Position|null=null;
@@ -19,6 +21,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         this.apiClient=new ApiClient(outputChannel);
         this.intentTracker=new IntentTracker();
         this.completionCache=new CompletionCache();
+        this.contextGatherer=new ContextGatherer(this.intentTracker,this.outputChannel);
     }
     
     private lastCallTime = 0;
@@ -60,11 +63,17 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             if(continuePrediction!==undefined){
                 return continuePrediction;
             }
-            //getting prefix lines of characters from position (0,0) of the file to the positsion(where the cursor is held)
-            const prefix = document.getText(
-             new vscode.Range(new vscode.Position(0,0), position)
-            );
             
+            //getting prefix lines of characters from position (0,0) of the file to the positsion(where the cursor is held)
+
+            // const prefix = document.getText(
+            //  new vscode.Range(new vscode.Position(0,0), position)
+            // );
+
+            const prefix=await this.contextGatherer.gatherContext(document,position);
+            
+            this.log(`Prefix: ${prefix}`);
+
             //to avoid extension triggering twice for first time
             if(token.isCancellationRequested){
                 this.log('Request cancelled');

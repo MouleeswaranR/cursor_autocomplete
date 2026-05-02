@@ -328,6 +328,45 @@ export class IntentTracker implements vscode.Disposable{
         }
     }
 
+    private relativeFilePath(filePath:string):string{
+        //getting all workspace folders
+        const workspaceFolders=vscode.workspace.workspaceFolders;
+
+        if(!workspaceFolders||workspaceFolders.length===0)return filePath.split('/').pop()||filePath;
+
+        for(const folder of workspaceFolders){
+            //checking all folders active with filepath to see it start with same string
+            if(filePath.startsWith(folder.uri.fsPath)){
+                return filePath.slice(folder.uri.fsPath.length+1);
+            }
+        }
+
+        return filePath.split('/').pop()||filePath;
+    }
+
+    serialize():string{
+        this.finalizeIntent();
+
+        if(this.buffer.length==0)return '';
+
+        //using last 40 entries for serializing
+        const entries=this.buffer.slice(-40);   
+
+        const lines:string[]=[];
+
+        //arranging all entries in a format and return its as a string
+        for(let i=0;i<entries.length;i++){
+            const entry=entries[i];
+
+            const relativePath=this.relativeFilePath(entry.filePath);//getting relative file path
+
+            const lineRange=entry.lineRange.start===entry.lineRange.end ?`${entry.lineRange.start}`:`${entry.lineRange.start}-${entry.lineRange.end}`;
+
+            lines.push(`${i+1}. [${entry.type}] ${relativePath}: ${lineRange} -> "${entry.content}"`);
+        }
+
+        return lines.join('/n');
+    }
 
     dispose() {
         this.finalizeIntent();
