@@ -11,6 +11,8 @@ export interface TabCompletionConfig{
     //Cache settings
     completionCacheTtlMs:number,
     completionCacheMaxEntries:number,
+
+    lspCacheMaxEntries:number,
 }
 
 
@@ -21,7 +23,8 @@ const DEFAULTS:TabCompletionConfig={
     model:'qwen/qwen-32b',
     maxTokens:500,
     completionCacheMaxEntries:100,
-    completionCacheTtlMs:30000
+    completionCacheTtlMs:30000,
+    lspCacheMaxEntries:100
 }
 
 export class ConfigurationService implements vscode.Disposable{
@@ -51,7 +54,8 @@ export class ConfigurationService implements vscode.Disposable{
             model:config.get<string>('model',DEFAULTS.model),
             maxTokens:config.get<number>('maxTokens',DEFAULTS.maxTokens),
             completionCacheTtlMs:config.get<number>('completionCacheTtlMs',DEFAULTS.completionCacheTtlMs),
-            completionCacheMaxEntries:config.get<number>('completionCacheMaxEntries',DEFAULTS.completionCacheMaxEntries)
+            completionCacheMaxEntries:config.get<number>('completionCacheMaxEntries',DEFAULTS.completionCacheMaxEntries),
+            lspCacheMaxEntries:config.get<number>('lspCacheMaxEntries',DEFAULTS.lspCacheMaxEntries)
         }
     }
 
@@ -94,6 +98,7 @@ export class ConfigurationService implements vscode.Disposable{
     get groqApiKey(){ return this.cachedConfig.groqApiKey}
     get completionCacheMaxEntries(){return this.cachedConfig.completionCacheMaxEntries};
     get completionCacheTtlMs(){return this.cachedConfig.completionCacheTtlMs};
+    get lspCacheMaxEntries(){return this.cachedConfig.lspCacheMaxEntries};
 
     //singleton format
     static getInstance():ConfigurationService{
