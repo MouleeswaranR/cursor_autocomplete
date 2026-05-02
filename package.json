@@ -58,7 +58,7 @@
           "maximum": 120000,
           "description": "Completion Cache TTL in seconds"
         },
-         "tab-completion.lspCacheMaxEntries": {
+        "tab-completion.lspCacheMaxEntries": {
           "type": "number",
           "default": 100,
           "minimum": 10,
