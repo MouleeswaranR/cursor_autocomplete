@@ -67,7 +67,7 @@ export class LSPService implements vscode.Disposable{
             //getting symbols of a document
             const symbols:vscode.DocumentSymbol[]=await vscode.commands.executeCommand(
                 'vscode.executeDocumentSymbolProvider',
-                document,
+                document.uri,
             );
 
             //putting t into a cache

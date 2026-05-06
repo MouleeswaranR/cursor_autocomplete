@@ -4,6 +4,7 @@ import { ApiClient } from '../api/apiClient';
 import { IntentTracker } from '../services/intentTracker';
 import { CompletionCache } from '../cache/completionCache';
 import { ContextGatherer } from '../services/contextGatherer';
+import { ASTService } from '../services/astService';
 
 export class InlineCompletionProvider implements vscode.InlineCompletionItemProvider, vscode.Disposable{
     private readonly outputChannel: vscode.OutputChannel;
@@ -16,29 +17,28 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     private lastCompletionPosition:vscode.Position|null=null;
     private lastCompletionUri:string|null=null;
 
-    constructor(outputChannel: vscode.OutputChannel){
+    constructor(astService:ASTService,outputChannel: vscode.OutputChannel){
         this.outputChannel=outputChannel;
-        this.apiClient=new ApiClient(outputChannel);
+        this.apiClient=new ApiClient(outputChannel);    
         this.intentTracker=new IntentTracker();
         this.completionCache=new CompletionCache();
-        this.contextGatherer=new ContextGatherer(this.intentTracker,this.outputChannel);
+        this.contextGatherer=new ContextGatherer(astService,this.intentTracker,this.outputChannel);       
     }
     
-    private lastCallTime = 0;
+    private currentRequestId = 0;
     private readonly debounceMs = 300;
 
     async provideInlineCompletionItems(document: vscode.TextDocument, position: vscode.Position, _context: vscode.InlineCompletionContext, token: vscode.CancellationToken): Promise<vscode.InlineCompletionList|null>{
         try {   
             this.log(`provideInlineCompletionItems called at Line No:${position.line}:${position.character}`);
-            
-            // Fix 4: Timestamp-based debounce
-            const now = Date.now();
-            if (now - this.lastCallTime < this.debounceMs) {
-                return null;
-            }
-            this.lastCallTime = now;
 
-            if (token.isCancellationRequested) {
+            // Each call gets a unique id; only the latest call survives the debounce.
+            const requestId = ++this.currentRequestId;
+
+            // Debounce: wait, then check if a newer call has already arrived.
+            await new Promise<void>(resolve => setTimeout(resolve, this.debounceMs));
+
+            if (token.isCancellationRequested || requestId !== this.currentRequestId) {
                 return null;
             }
 
@@ -74,9 +74,9 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             
             this.log(`Prefix: ${prefix}`);
 
-            //to avoid extension triggering twice for first time
-            if(token.isCancellationRequested){
-                this.log('Request cancelled');
+            // Abort if a newer request has already arrived while we were gathering context.
+            if(token.isCancellationRequested || requestId !== this.currentRequestId){
+                this.log('Request cancelled or superseded');
                 return null;
             }
 
@@ -108,10 +108,25 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 return null;
             }
 
+            // Discard if a newer request arrived while the API was streaming.
+            if (requestId !== this.currentRequestId) {
+                return null;
+            }
+
             // Fix 1: Reject weak completions
             if (!completion || completion.trim().length < 1) {
                 return null;
             }
+
+            // Strip the already-typed line prefix from the completion so the
+            // InlineCompletionItem only contains text that goes AFTER the cursor.
+            const linePrefix = document.getText(
+                new vscode.Range(new vscode.Position(position.line, 0), position)
+            );
+            if (completion.startsWith(linePrefix)) {
+                completion = completion.slice(linePrefix.length);
+            }
+
 
             const edit:ReplacementEdit={
                 insertText:completion,
@@ -176,13 +191,11 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         //getting newly typed text from last predicted text
         const typedText=document.getText(new vscode.Range(this.lastCompletionPosition,position));
 
-        // Fix 3: Better divergence logic (more flexible)
-        const typed = typedText.trim();
+        const typed = typedText;
         const predicted = this.lastCompletionText;
 
-        if (predicted.includes(typed)) {
-            const index = predicted.indexOf(typed);
-            const remaining = predicted.slice(index + typed.length);
+        if (predicted.startsWith(typed)) {
+            const remaining = predicted.slice(typed.length);
             if (remaining) {
                 this.log(`Continuing prediction : typed: "${typedText}", remaining: "${remaining}"`)
                 const replaceRange = new vscode.Range(position, position);
