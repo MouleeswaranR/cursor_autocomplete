@@ -1,8 +1,10 @@
 # Tab Complete
 
-> **VS Code Marketplace link — coming soon**
+> 🚀 **Extension — Coming Soon on VS Code Marketplace**
 
-**Tab Complete** is a VS Code extension that delivers fast, context-aware AI-powered inline (ghost-text) code completions — directly inside your editor as you type. It streams suggestions from top LLM providers (OpenRouter, Groq, Fireworks), understands your editing history, and builds highly relevant context from your real codebase rather than just the current line.
+**Tab Complete** is a VS Code extension that delivers fast, context-aware AI-powered inline (ghost-text) code completions — completely **free**, using the best open-weight models available today. It streams suggestions from top free-tier LLM providers (OpenRouter, Groq, Fireworks) that offer powerful models at **no cost**, and squeezes maximum performance out of them through a multi-stage intelligent ecosystem: smart context building, AST analysis, LSP integration, multi-layer caching, and edit-intent tracking — all working together so even a free model feels like a premium coding assistant.
+
+> **No paid API required.** OpenRouter, Groq, and Fireworks all offer generous free tiers. Tab Complete is designed from the ground up to get the most out of free models by sending them only the most relevant context — so you get better completions with fewer tokens.
 
 ---
 
@@ -49,7 +51,7 @@ User stops typing
 Display ghost-text inline suggestion
 ```
 
-This layered pipeline means most suggestions are served from fast local stages (stages 1–3) and only fall through to the LLM when genuinely needed.
+This layered pipeline means most suggestions are served from fast local stages (stages 1–3) and only fall through to the LLM when genuinely needed. This is also what makes Tab Complete excel with free models — by the time the LLM is called, it receives a surgically precise context rather than a raw file dump, so even smaller free models produce highly accurate completions.
 
 ---
 
@@ -335,11 +337,13 @@ Tab Complete supports three LLM providers and automatically selects whichever on
 
 ### Providers
 
-| Provider | Default model | Notes |
-|---|---|---|
-| **OpenRouter** | `qwen/qwen3-32` | Default and recommended — access to hundreds of models |
-| **Groq** | `qwen/qwen3-32` | Ultra-fast inference on dedicated hardware |
-| **Fireworks** | `qwen/qwen3-32` | Fast serverless inference |
+All three supported providers offer **free tiers** — no credit card required to get started:
+
+| Provider | Default model | Free tier | Notes |
+|---|---|---|---|
+| **OpenRouter** | `qwen/qwen3-32` | ✅ Free models available | Default and recommended — access to hundreds of open-weight models, many completely free |
+| **Groq** | `qwen/qwen3-32` | ✅ Free tier included | Ultra-fast inference on dedicated hardware — often the fastest free option |
+| **Fireworks** | `qwen/qwen3-32` | ✅ Free tier included | Fast serverless inference for open-weight models |
 
 **Provider selection** — The extension checks keys in this order: OpenRouter → Groq → Fireworks. The first provider with a non-empty API key is used.
 
@@ -448,15 +452,17 @@ All other languages receive verbatim or simplified prefix completions (no AST, b
 
 ### 1. Install the extension
 
-> **VS Code Marketplace link — coming soon**
+> 🚀 **Coming Soon on VS Code Marketplace** — stay tuned!
 
-### 2. Get an API key
+Once released, install directly from the VS Code Extensions panel by searching **"Tab Complete"**.
 
-Pick any supported provider and grab a free API key:
+### 2. Get a free API key
 
-- **OpenRouter** (recommended): [openrouter.ai/keys](https://openrouter.ai/keys)
-- **Groq**: [console.groq.com/keys](https://console.groq.com/keys)
-- **Fireworks**: [fireworks.ai](https://fireworks.ai)
+All providers below have **free tiers** — pick one and create a free account:
+
+- **OpenRouter** (recommended — free models available): [openrouter.ai/keys](https://openrouter.ai/keys)
+- **Groq** (free tier, very fast): [console.groq.com/keys](https://console.groq.com/keys)
+- **Fireworks** (free tier): [fireworks.ai](https://fireworks.ai)
 
 ### 3. Add your API key to VS Code settings
 
