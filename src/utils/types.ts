@@ -59,3 +59,23 @@ export interface EnclosingScopes{
     enclosingFunction: vscode.DocumentSymbol|null;
     symbolsByName:Map<string,vscode.DocumentSymbol[]>;
 }
+
+export interface ReplacementRegion{
+    text:string;
+    range:vscode.Range
+}
+
+
+export interface IndexedSymbol{
+    name:string;
+    kind:number;
+    containerName?:string;
+    uri:string;
+    range:{
+        startLine:number;
+        startCharacter:number;
+        endLine:number;
+        endCharacter:number;
+    };
+    signature?:string;
+}
