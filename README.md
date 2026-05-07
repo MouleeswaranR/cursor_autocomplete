@@ -6,7 +6,7 @@
 
 > **No paid API required.** OpenRouter, Groq, and Fireworks all offer generous free tiers. Tab Complete is designed from the ground up to get the most out of free models by sending them only the most relevant context — so you get better completions with fewer tokens.
 
-🚀 **Coming Soon on VS Code Marketplace** — stay tuned!
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/moulee777.tab-complete?label=VS%20Code%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=moulee777.tab-complete)
 
 ---
 
