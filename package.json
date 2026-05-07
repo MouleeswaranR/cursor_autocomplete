@@ -2,7 +2,7 @@
   "name": "tab-complete",
   "displayName": "Nesha - AI Tab Completion",
   "description": "AI-powered inline tab completion using local context, cross-file symbols, and fast LLMs via OpenRouter, Groq, or Fireworks.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "moulee777",
   "icon": "images/icon.png",
   "repository": {
