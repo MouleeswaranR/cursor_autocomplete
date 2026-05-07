@@ -403,8 +403,9 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         const [first, ...rest] = lines;
         const fixed = rest.map(line => {
             if (!line.trim()) return line;                  // preserve blank lines as-is
-            if (line.startsWith(indent)) return line;       // model already included correct indent
-            return indent + line;                           // prepend missing indentation
+            if (line.startsWith(indent)) return line;       // already has correct or deeper indent
+            if (/^\s/.test(line)) return line;              // has some indentation — leave it, don't double-indent
+            return indent + line;                           // no indentation at all — prepend current level
         });
         return [first, ...fixed].join('\n');
     }
