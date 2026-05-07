@@ -22,10 +22,12 @@
 8. [Feature 7 — LSP-Aware Local Dependency Resolution](#feature-7--lsp-aware-local-dependency-resolution)
 9. [Feature 8 — Multi-Provider LLM Streaming](#feature-8--multi-provider-llm-streaming)
 10. [Feature 9 — Live Configuration with Hot-Reload](#feature-9--live-configuration-with-hot-reload)
-11. [Extension Settings Reference](#extension-settings-reference)
-12. [Supported Languages](#supported-languages)
-13. [Getting Started](#getting-started)
-14. [Architecture Diagram](#architecture-diagram)
+11. [Feature 10 — Completion De-Duplication](#feature-10--completion-de-duplication)
+12. [Feature 11 — Cross-File Symbol Context](#feature-11--cross-file-symbol-context)
+13. [Extension Settings Reference](#extension-settings-reference)
+14. [Supported Languages](#supported-languages)
+15. [Getting Started](#getting-started)
+16. [Architecture Diagram](#architecture-diagram)
 
 ---
 
@@ -402,6 +404,128 @@ All settings are applied **immediately** when you change them in VS Code's setti
 
 ---
 
+## Feature 10 — Completion De-Duplication
+
+### What it does
+
+Before showing any suggestion to the user, the `DeDuplicationService` runs three independent checks to ensure the completion does not repeat code that already exists in the file — either above or below the cursor. This prevents double-insertions and the jarring experience of the LLM echoing back lines you have already written.
+
+### Three-layer duplication checks
+
+#### Layer 1 — Lookbehind overlap trim
+Compares the **beginning** of the completion against the lines **above the cursor** (up to 200 lines). If the completion starts with lines that already exist above, those lines are stripped from the completion — only the genuinely new continuation is kept.
+
+```
+Existing code (above cursor):
+  4|   const b = 2;  ← cursor at end of this line
+
+Model returns:
+  "  const b = 2;\n  const c = 3;"
+
+After trim:
+  "  const c = 3;"   ← only the new part is kept
+```
+
+It also handles the **prefix-merge** special case: if the cursor is mid-line, it checks whether the first line of the completion merges naturally with the text already typed on the cursor line.
+
+#### Layer 2 — Structural overlap check
+Compares the completion against the **code below the cursor** (lookahead). If **2 or more consecutive lines** of the completion match 2 or more consecutive lines already in the lookahead (with ≥ 0.85 similarity), the completion is rejected entirely.
+
+```
+Code below cursor (lookahead):
+  "  console.log(x);\n  return x;\n}"
+
+Model returns:
+  "  console.log(x);\n  return x;\n}\n"
+
+→ Two consecutive matching lines found → reject
+```
+
+This check uses normalised text comparison (whitespace-collapsed) and fuzzy similarity scoring so that minor formatting differences do not cause false negatives.
+
+#### Layer 3 — Trailing overlap check
+Checks whether the **end** of the completion duplicates the **start** of the lookahead. This catches the common case where the model correctly completes a function body but also repeats the closing `}` that already exists on the next line.
+
+```
+Code below cursor:
+  10|   return x;
+  11| }
+
+Model returns:
+  "  return x;\n}\n"
+
+→ Last line "}" matches the next existing line "}" → trailing overlap → reject
+```
+
+The check works by collecting up to 5 trailing non-empty lines from the completion and comparing them against up to 100 leading non-empty lines of the lookahead.
+
+### Normalisation
+
+All comparisons use `normalizeText` — which collapses whitespace and strips comments — and `stringSimilarity` — a character-level similarity ratio — so the checks are robust to indentation differences and minor reformatting.
+
+---
+
+## Feature 11 — Cross-File Symbol Context
+
+### What it does
+
+The `CrossFileService` enriches completions with type signatures and declarations from **other files in your workspace**. When the code near your cursor references a class, interface, function, or type from a different file, that symbol's signature is automatically included in the context sent to the LLM — so it can generate completions that correctly use those external types without you having to paste anything manually.
+
+### How it works
+
+The pipeline has three stages:
+
+#### Stage 1 — Reference Extraction (`ReferenceExtractor`)
+Scans the last 15 lines of the prefix (the "nearby text") to find identifiers that are:
+- Used in the nearby code
+- **Imported from another file** (not declared locally in the current prefix)
+
+It parses import statements to build an alias map (e.g. `import { foo as Bar }` → original name is `foo`), then resolves aliases back to their original names. Only identifiers that appear in imports but are **not** locally declared are treated as cross-file references.
+
+#### Stage 2 — Symbol Index (`SymbolIndex`)
+Maintains a workspace-wide index of document symbols, built using VS Code's LSP `executeDocumentSymbolProvider` command. The index is kept up to date by listening to:
+- `onDidSaveTextDocument` — re-indexes a file when saved
+- `onDidOpenTextDocument` — indexes a file when first opened
+
+Each entry is cached by document URI and version, so re-indexing only happens when the file actually changes. Supported symbol kinds: `Class`, `Interface`, `Enum`, `Function`, `Method`, `Property`, `Constant`, `TypeParameter`, `Struct`.
+
+#### Stage 3 — Signature Extraction (`SignatureProvider`)
+For each cross-file symbol that matches a reference in the current prefix, the provider:
+1. Opens the symbol's source document.
+2. Extracts the text of the symbol's range.
+3. Parses it with Tree-sitter (`ASTService`) to extract just the **signature** (not the full body).
+4. Caches the result by symbol URI + location (so the same symbol is never re-parsed).
+
+The extracted signatures are attached to the `CompletionContext` as `crossFileSymbols` and included in the LLM prompt.
+
+### Example
+
+Your file imports and uses `ApiClient` from `./api/apiClient.ts`:
+
+```typescript
+import { ApiClient } from './api/apiClient';
+// ...
+const response = await this.apiClient.  // ← cursor here
+```
+
+Cross-file context automatically adds:
+
+```typescript
+// Cross-file symbol: ApiClient
+class ApiClient {
+    constructor(outputChannel: vscode.OutputChannel)
+    async streamCompletion(messages: ChatMessage[], token: vscode.CancellationToken): AsyncGenerator<string>
+}
+```
+
+The LLM now knows exactly what methods `ApiClient` exposes and generates the correct completion.
+
+### Caching
+
+Signature results are cached in a `BoundedCache<string>` (capacity 1000) keyed by symbol URI + kind + name + range. Entries are grouped by file URI so all signatures from a file are invalidated together when that file is saved.
+
+---
+
 ## Extension Settings Reference
 
 Configure under **Settings → Tab Completion** or in `settings.json`:
@@ -499,15 +623,24 @@ extension.ts (entry point)
         ├── CompletionCache           ← LRU+LFU bounded cache (keyed by content + position + intent hash)
         │       └── BoundedCache<V>   ← generic fixed-capacity cache with TTL and group invalidation
         │
+        ├── DeDuplicationService      ← three-layer overlap filter (lookbehind / structural / trailing)
+        │
         └── ContextGatherer           ← coordinates context building
                 │
                 ├── PrefixStage       ← smart prefix: verbatim / simplified / scoped
-                │       ├── Import filter         ← only used imports
+                │       ├── Import filter           ← only used imports
                 │       ├── LocalDependencyResolver ← same-file symbol resolution via LSP
-                │       └── LSPService            ← wraps VS Code LSP commands with caching
+                │       └── LSPService              ← wraps VS Code LSP commands with caching
                 │
-                └── ReplacementRegionStage ← AST-powered replacement range calculation
-                        └── ASTService    ← Tree-sitter parser (TypeScript, Python, Rust, Go, Java, C, C++)
+                ├── SuffixStage       ← captures closing brackets after the replacement region
+                │
+                ├── ReplacementRegionStage ← AST-powered replacement range calculation
+                │       └── ASTService    ← Tree-sitter parser (TypeScript, Python, Rust, Go, Java, C, C++)
+                │
+                └── CrossFileService  ← enriches context with symbols from other workspace files
+                        ├── ReferenceExtractor ← finds imported identifiers used near cursor
+                        ├── SymbolIndex        ← LSP-based workspace symbol index (auto-updated on save/open)
+                        └── SignatureProvider  ← AST-extracts signatures + caches by symbol location
 
 ConfigurationService  ← singleton; hot-reloads all settings; notifies all subscribers
 ```
@@ -522,12 +655,15 @@ Initial release:
 - AI-powered inline completions via OpenRouter, Groq, and Fireworks
 - Smart scoped/simplified/verbatim prefix builder
 - AST-powered replacement region using Tree-sitter
+- Suffix stage — captures closing brackets after the replacement region
 - Multi-layer completion caching (LRU+LFU with TTL)
 - Continue-prediction type-ahead shortcutting
 - Edit intent tracking with cache invalidation
 - LSP-aware local dependency resolution
 - Multi-provider streaming with cancellation
 - Live configuration hot-reload
+- Three-layer de-duplication (lookbehind trim, structural overlap, trailing overlap)
+- Cross-file symbol context (workspace symbol index + AST signature extraction)
 
 ---
 

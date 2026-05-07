@@ -22,8 +22,10 @@ export interface ChatMessage{
 }
 
 export interface ReplacementEdit{
+    deleteRange: vscode.Range;
     insertText:string;
-    startPosition:vscode.Position
+    deletedText: string;
+    _actualDeleteRange:vscode.Range | undefined;
 }
 
 export interface PendingCompletion{
@@ -78,4 +80,23 @@ export interface IndexedSymbol{
         endCharacter:number;
     };
     signature?:string;
+}
+
+
+
+export interface CompletionContext{
+    prefix:string;
+    replacementRegion:ReplacementRegion;
+    suffix:string;
+    crossFileSymbols:IndexedSymbol[];
+    filePath:string;
+    cursorPosition:vscode.Position;
+    languageId:string,
+    editHistoryHash:string;
+}
+
+
+export interface ChatMessage{
+    role: 'system'|'user'|'assistant';
+    content:string;
 }

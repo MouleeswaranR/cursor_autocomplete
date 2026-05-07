@@ -6,7 +6,7 @@ import { ReplacementRegionStage } from './contextStages/replacementRegionStages'
 import { ASTService } from './astService';
 import { SuffixStage } from './contextStages/suffixStage';
 import { CrossFileService } from './crossFile/crossFileService';
-
+import { CompletionContext } from '../utils/types';
 
 export class ContextGatherer implements vscode.Disposable{
     private readonly intentTracker:IntentTracker;
@@ -28,7 +28,7 @@ export class ContextGatherer implements vscode.Disposable{
     async gatherContext(
         document:vscode.TextDocument,
         position:vscode.Position
-    ):Promise<string>{
+    ):Promise<CompletionContext>{
 
 
         //getting all edit history as a string formatted
@@ -51,7 +51,16 @@ export class ContextGatherer implements vscode.Disposable{
         //getting cross file symbols
         const crossFileSymbols=await this.crossFileService.getRelevantSymbols(document,prefix);
        
-        return JSON.stringify(crossFileSymbols);
+        return {
+            prefix,
+            replacementRegion,
+            suffix,
+            cursorPosition:position,
+            languageId:document.languageId,
+            filePath:vscode.workspace.asRelativePath(document.uri),
+            editHistoryHash:editHistory,
+            crossFileSymbols:crossFileSymbols
+        }
     }
 
     dispose():void {

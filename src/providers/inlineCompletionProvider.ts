@@ -5,6 +5,10 @@ import { IntentTracker } from '../services/intentTracker';
 import { CompletionCache } from '../cache/completionCache';
 import { ContextGatherer } from '../services/contextGatherer';
 import { ASTService } from '../services/astService';
+import { PromptBuilder } from '../services/promptBuilder';
+import { DeDuplicationService } from '../services/deDuplicationService';
+import { deprecate } from 'util';
+import { DeletionDecoration } from '../ui/deletionDecoration';
 
 export class InlineCompletionProvider implements vscode.InlineCompletionItemProvider, vscode.Disposable{
     private readonly outputChannel: vscode.OutputChannel;
@@ -12,6 +16,9 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     private readonly intentTracker:IntentTracker;
     private readonly completionCache:CompletionCache;
     private readonly contextGatherer:ContextGatherer;
+    private readonly promptBuilder:PromptBuilder;
+    private readonly deDuplicationService:DeDuplicationService;
+    private readonly deletionDecoration:DeletionDecoration;
     private pendingCompletion: PendingCompletion|null=null;//used to track last pending completion so that duplication can be avoided if they are same
     private lastCompletionText='';
     private lastCompletionPosition:vscode.Position|null=null;
@@ -21,8 +28,11 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         this.outputChannel=outputChannel;
         this.apiClient=new ApiClient(outputChannel);    
         this.intentTracker=new IntentTracker();
-        this.completionCache=new CompletionCache();
-        this.contextGatherer=new ContextGatherer(astService,this.intentTracker,this.outputChannel);       
+        this.completionCache=new CompletionCache();     
+        this.promptBuilder=new PromptBuilder();
+        this.contextGatherer=new ContextGatherer(astService,this.intentTracker,this.outputChannel);   
+        this.deDuplicationService=new DeDuplicationService();    
+        this.deletionDecoration=new DeletionDecoration();
     }
     
     private currentRequestId = 0;
@@ -70,9 +80,13 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             //  new vscode.Range(new vscode.Position(0,0), position)
             // );
 
-            const prefix=await this.contextGatherer.gatherContext(document,position);
+            //context gathered(prefix,replacement region,suffix,edit history etc)
+            const completionContext=await this.contextGatherer.gatherContext(document,position);
             
-            this.log(`Prefix: ${prefix}`);
+            this.log(`CompletionContext: ${JSON.stringify(completionContext)}`);
+
+            //system prompt with user prompt
+            const messages=this.promptBuilder.buildPrompt(completionContext);
 
             // Abort if a newer request has already arrived while we were gathering context.
             if(token.isCancellationRequested || requestId !== this.currentRequestId){
@@ -84,19 +98,8 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             //sending user input to LLM API Client
             try {
                 completion=await this.callCompletionApi(
-                    [{role:'system',content:`
-                    You are a code autocomplete engine.
-
-                    Rules:
-                    - Complete the current line of code
-                    - Return meaningful continuation (not single characters)
-                    - Do not return partial tokens
-                    - Prefer full expressions like function calls
-                    - No explanations
-                    `},
-                     {role:'user',content:prefix,},
-                    ],
-                    token
+                 messages,
+                token,
                 )
                 this.log(`Completion result: ${completion}`)
             } catch (error) {    
@@ -115,6 +118,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
 
             // Fix 1: Reject weak completions
             if (!completion || completion.trim().length < 1) {
+                this.log('Rejected: completion empty after API call');
                 return null;
             }
 
@@ -127,11 +131,31 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 completion = completion.slice(linePrefix.length);
             }
 
+            //cleaningoutput(backticks,empty text)
+            completion=this.cleanCompletionText(completion);
 
-            const edit:ReplacementEdit={
-                insertText:completion,
-                startPosition:position
+            //checking for deduplication
+            const dedupResult=this.deDuplicationService.check(
+                document,position,completion
+            );
+
+            if(!dedupResult.proceed){
+                this.log(`DeDup rejected: ${dedupResult.reasonText??'no reason provided'}`);
+                return null;
             }
+
+            //removing duplications from output
+            completion=dedupResult.completion;
+
+            const edit=this.computeMinimalReplacement(document,completionContext.replacementRegion.range.start,completionContext.replacementRegion.range.end,completion);
+
+            if(!edit|| edit.insertText.length===0){
+                this.log(`No change detected — oldText matches newText or insertText empty. completion: ${JSON.stringify(completion)}`);
+                return null;
+            }
+
+            this.log(`Replacement Edit ${JSON.stringify(edit)}`)
+
             //adding the completed result from LLM in cache
             this.completionCache.set(document,position,editHistoryHash,edit);
 
@@ -140,6 +164,61 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             this.log(`Unknown error: ${error}`)
             return null;
         }
+    }
+
+    //computing minimal differnece between original and model output
+    private computeMinimalReplacement(
+        document: vscode.TextDocument,
+        regionStart: vscode.Position,
+        regionEnd: vscode.Position,
+        newText: string
+    ): ReplacementEdit | null {
+        // What’s in the document right now (from cursor to the end of the region we’re replacing).
+        const oldText = document.getText(new vscode.Range(regionStart, regionEnd));
+        if (oldText === newText) {
+            return null;
+        }
+
+        //  only look at as many characters as the shorter string has, so we don’t go past the end.
+        const minLength = Math.min(oldText.length, newText.length);
+
+        // How many characters are the same at the beginning? Walk forward until they differ.
+        let prefixLength = 0;
+        while (prefixLength < minLength && oldText[prefixLength] === newText[prefixLength]) {
+            prefixLength++;
+        }
+
+        // How many characters are the same at the end? Walk backward from the end (after the prefix).
+        let suffixLength = 0;
+        //to prevent from suffix check overalp with prefix
+        const maxSuffixLength = minLength - prefixLength;
+        while (
+            suffixLength < maxSuffixLength &&
+            oldText[oldText.length - 1 - suffixLength] === newText[newText.length - 1 - suffixLength]
+        ) {
+            suffixLength++;
+        }
+
+        // Where does the “different part” end in oldText and in newText? (Everything between prefix and suffix.)
+        const oldDiffEnd = oldText.length - suffixLength;
+        const newDiffEnd = newText.length - suffixLength;
+        // The bit we’re actually removing — this is what we show in red when you accept.
+        const deletedText = oldText.slice(prefixLength, oldDiffEnd);
+
+        // Turn character counts into line/column positions so we can tell the editor where to delete.
+        const regionStartOffset = document.offsetAt(regionStart);
+        const actualDeleteStart = document.positionAt(regionStartOffset + prefixLength);
+        const actualDeleteEnd = document.positionAt(regionStartOffset + oldDiffEnd);
+
+        return {
+            // “Replace from cursor to here.” Editor needs the range to start at the cursor.
+            deleteRange: new vscode.Range(regionStart, actualDeleteEnd),
+            // “Insert this.” It’s the new text from the start up to the end of the changed part.
+            insertText: newText.slice(0, newDiffEnd),
+            deletedText,
+            // “Only highlight this part in red” — just the middle we’re deleting, not the whole range.
+            _actualDeleteRange: deletedText ? new vscode.Range(actualDeleteStart, actualDeleteEnd) : undefined,
+        };
     }
 
     //checking in cache before llm call
@@ -162,7 +241,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         edit:ReplacementEdit,
         document:vscode.TextDocument
     ):vscode.InlineCompletionList{  
-        this.lastCompletionPosition=edit.startPosition;
+        this.lastCompletionPosition=edit.deleteRange.start;
         this.lastCompletionText=edit.insertText;
         this.lastCompletionUri=document.uri.toString();
 
@@ -171,7 +250,17 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 documentUri:document.uri.toString(),
                 edit
             }
-        return this.createInlineCompletionList(edit.insertText);
+
+        //showing deletion decoration on ui
+        if(edit.deletedText.length>0){
+            const editor=vscode.window.activeTextEditor;
+            //checking if editor document and current document are same
+            if(editor && editor.document.uri.toString()===document.uri.toString()){
+                const decorationRange=edit._actualDeleteRange??edit.deleteRange;
+                this.deletionDecoration.showDeletion(editor,decorationRange);
+            }
+        }
+        return this.createInlineCompletionList(edit.insertText,edit.deleteRange);
     }
 
     //function to check whether to continue prediction for user on each cursor move or is it the same predicted text again typed by user to avoid new predictions each time
@@ -225,7 +314,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             return undefined;
         }
 
-        const pendingPosition=this.pendingCompletion.edit.startPosition;
+        const pendingPosition=this.pendingCompletion.edit.deleteRange.start;
         const pendingDocUri=this.pendingCompletion.documentUri;
 
         //if current editing document is not equal to last sugggestion document, then no need for last request to be stored,clearing it
@@ -251,15 +340,27 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     }
 
     //used to clear the last pending completion
-    private clearPendingCompletion():void{
-        this.pendingCompletion=null;
+    clearPendingCompletion(): void {
+        this.pendingCompletion = null;
+        this.deletionDecoration.clearDecorations();
     }
 
     //helper function to create inline completion list for ghost suggestion
     private createInlineCompletionList(text:string,range?:vscode.Range):vscode.InlineCompletionList{
          const newItem=new vscode.InlineCompletionItem(text,range);
-            return {'items':[newItem]}
+
+        return {'items':[newItem]}
     }
+
+    getPendingEdit():ReplacementEdit|null{
+        return this.pendingCompletion?.edit??null;
+    }
+
+      getIntentTracker(): IntentTracker {
+        return this.intentTracker;
+    }
+
+    
 
     //calling LLM and returning streaming output
     private async callCompletionApi(messages:ChatMessage[],token:vscode.CancellationToken){
@@ -280,14 +381,24 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         return result.trim();
     }
 
+    //removing backticks or empty output from llm
+     private cleanCompletionText(text: string): string {
+        let cleaned = text.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
+        const explanationPattern = /\n\n(?:\/\/|\/\*|#|Note:|Explanation:)[\s\S]*$/;
+        cleaned = cleaned.replace(explanationPattern, '');
+        return cleaned.trimEnd();//trimming at end because python syntax for indentation will be error if removed at start
+    }
+
     //logging channel for vscode terminal
     private log(message:string):void{
         this.outputChannel.appendLine(`[Provider] ${message}`)
     }
 
-    dispose() {
+    dispose():void {
         this.apiClient.dispose();
         this.intentTracker.dispose();
         this.completionCache.dispose();
+        this.deletionDecoration.dispose();
+        this.contextGatherer.dispose();
     }
 }

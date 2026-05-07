@@ -1,8 +1,19 @@
 {
   "name": "tab-complete",
-  "displayName": "Tab Complete",
-  "description": "Tab completion extension",
-  "version": "0.0.1",
+  "displayName": "Nesha - AI Tab Completion",
+  "description": "AI-powered inline tab completion using local context, cross-file symbols, and fast LLMs via OpenRouter, Groq, or Fireworks.",
+  "version": "0.0.2",
+  "publisher": "moulee777",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MouleeswaranR/cursor_autocomplete"
+  },
+  "homepage": "https://github.com/MouleeswaranR/cursor_autocomplete/blob/main/README.md",
+  "bugs": {
+    "url": "https://github.com/MouleeswaranR/cursor_autocomplete/issues"
+  },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.116.0"
   },
@@ -14,6 +25,18 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "keybindings": [
+      {
+        "command": "tab-completion.acceptCompletion",
+        "key": "tab",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "tab-completion.rejectCompletion",
+        "key": "escape",
+        "when": "editorTextFocus"
+      }
+    ],
     "configuration": {
       "title": "Tab Completion",
       "properties": {
