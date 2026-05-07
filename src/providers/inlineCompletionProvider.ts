@@ -124,15 +124,22 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
 
             // Strip the already-typed line prefix from the completion so the
             // InlineCompletionItem only contains text that goes AFTER the cursor.
+            // Only strip when there is real (non-whitespace) content before the cursor —
+            // otherwise we would remove leading indentation from Python completions.
             const linePrefix = document.getText(
                 new vscode.Range(new vscode.Position(position.line, 0), position)
             );
-            if (completion.startsWith(linePrefix)) {
+            if (linePrefix.trim() && completion.startsWith(linePrefix)) {
                 completion = completion.slice(linePrefix.length);
             }
 
             //cleaningoutput(backticks,empty text)
             completion=this.cleanCompletionText(completion);
+
+            // Ensure continuation lines carry the current line's indentation.
+            // The model only outputs text for the replace_region so lines 2+
+            // won't have leading whitespace — they'd appear at column 0.
+            completion=this.fixContinuationIndent(completion,document,position);
 
             //checking for deduplication
             const dedupResult=this.deDuplicationService.check(
@@ -382,6 +389,26 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     }
 
     //removing backticks or empty output from llm
+    // Lines 2+ in a multi-line completion need to carry the current line's indentation.
+    // The model outputs only the replace_region text and has no way to know the
+    // surrounding indentation level, so continuation lines often come back unindented.
+    private fixContinuationIndent(completion: string, document: vscode.TextDocument, position: vscode.Position): string {
+        const lines = completion.split('\n');
+        if (lines.length <= 1) return completion;
+
+        // Leading whitespace of the cursor's line = the indentation level we're at
+        const indent = document.lineAt(position.line).text.match(/^(\s*)/)?.[1] ?? '';
+        if (!indent) return completion;
+
+        const [first, ...rest] = lines;
+        const fixed = rest.map(line => {
+            if (!line.trim()) return line;                  // preserve blank lines as-is
+            if (line.startsWith(indent)) return line;       // model already included correct indent
+            return indent + line;                           // prepend missing indentation
+        });
+        return [first, ...fixed].join('\n');
+    }
+
      private cleanCompletionText(text: string): string {
         let cleaned = text.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
         const explanationPattern = /\n\n(?:\/\/|\/\*|#|Note:|Explanation:)[\s\S]*$/;
