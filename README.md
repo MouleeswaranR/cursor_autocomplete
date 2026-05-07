@@ -1,6 +1,6 @@
 # Tab Complete
 
-> 🚀 **Extension — Coming Soon on VS Code Marketplace**
+> ✅ **Now live on the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=moulee777.tab-complete)**
 
 **Tab Complete** is a VS Code extension that delivers fast, context-aware AI-powered inline (ghost-text) code completions — completely **free**, using the best open-weight models available today. It streams suggestions from top free-tier LLM providers (OpenRouter, Groq, Fireworks) that offer powerful models at **no cost**, and squeezes maximum performance out of them through a multi-stage intelligent ecosystem: smart context building, AST analysis, LSP integration, multi-layer caching, and edit-intent tracking — all working together so even a free model feels like a premium coding assistant.
 
@@ -578,9 +578,9 @@ All other languages receive verbatim or simplified prefix completions (no AST, b
 
 ### 1. Install the extension
 
-> 🚀 **Coming Soon on VS Code Marketplace** — stay tuned!
+Install directly from the VS Code Extensions panel by searching **"Tab Complete"**, or click here:
 
-Once released, install directly from the VS Code Extensions panel by searching **"Tab Complete"**.
+**[➡ Install from VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=moulee777.tab-complete)**
 
 ### 2. Get a free API key
 
