@@ -1,5 +1,7 @@
 # Installation & Setup Guide
 
+> 📄 Also available on GitHub: [**View SETUP.md on GitHub**](https://github.com/MouleeswaranR/cursor_autocomplete/blob/main/SETUP.md)
+
 ## Step 1 — Install the Extension
 
 ### From VS Code Marketplace (Recommended)
@@ -119,9 +121,14 @@ Groq offers ultra-fast free inference.
 ## Step 4 — Start Using Tab Complete
 
 1. Open any code file (TypeScript, Python, JavaScript, etc.)
-2. Start typing some code
-3. **Wait ~300 ms** after you stop typing
-4. A grey ghost-text suggestion will appear inline
+2. Open the **Output** panel (`Ctrl+Shift+U`) → select **Tab completion** from the dropdown to confirm the extension is running and watch for any errors in real time
+3. Make sure VS Code's built-in inline completions are set to use Tab Complete:
+   - Press `Ctrl+,` to open **Settings**
+   - Search **`editor.inlineSuggest`** and ensure **Inline Suggest: Enabled** is checked
+   - Search **`editor.tabCompletion`** and set it to **`on`** so the `Tab` key accepts suggestions
+4. Start typing some code
+5. **Wait ~300 ms** after you stop typing
+6. A grey ghost-text suggestion will appear inline
 
 ### Accepting a suggestion
 
